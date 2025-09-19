@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
 from app.db.session import engine
 from app.db.base import Base
+from app.auth import models
 
 
 Base.metadata.create_all(bind=engine)
