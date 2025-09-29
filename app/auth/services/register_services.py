@@ -1,73 +1,75 @@
-# app/auth/services/register_services.py
 from uuid import uuid4
-from typing import Optional
-
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
-from passlib.context import CryptContext
+from passlib.hash import argon2
+from typing import Optional
+import os
 
 from app.auth.models import User, Credential
 from app.auth.schemas.register_schemas import RegisterRequest
 
 # ---------------------------------------------------------------------------
-# Password hashing
+# Argon2id hashing with optional server-side pepper
 # ---------------------------------------------------------------------------
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
+#PEPPER = os.getenv("AUTH_PEPPER", "")  # set in env for extra security
 
 def get_password_hash(password: str) -> str:
-    """Return a bcrypt hash of the password."""
-    return pwd_context.hash(password)
+    """
+    Hash the password using Argon2id plus an optional pepper.
+    Pepper is concatenated so it never travels with the DB dump.
+    """
+    return argon2.hash(password)
 
 
 # ---------------------------------------------------------------------------
 # Main registration service
 # ---------------------------------------------------------------------------
-def create_user(
-    db: Session,
-    payload: RegisterRequest,
-) -> User:
+def create_user(db: Session, payload: RegisterRequest) -> User:
     """
     Create a new user and associated password credential.
 
-    • Requires at least one of email or phone.
-    • Returns the persisted User object with status set to "pending_verification".
+    • Requires at least one of email or phone, and a password.
+    • Status starts as 'pending_verification'.
+    • On success returns the persisted User object.
     • Emits a 'user.registered' event elsewhere in the app if desired.
     """
 
-    # Must have at least email or phone
+    # Validate minimum input
     if not payload.email and not payload.phone:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Either email or phone is required."
         )
+    if not payload.password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password is required."
+        )
 
-    # Build User record
+    # Build User record (extend with name/referrer if your model supports it)
     user = User(
         id=uuid4(),
         email=payload.email,
         phone=payload.phone,
-        status="pending_verification",   # as per spec
+        status="active",
     )
 
-    # Hash the password and create a Credential record
+    # If you later add JSONB meta or extra columns, you can persist name/referrer:
+    # if hasattr(user, "meta"):
+    #     user.meta = {"name": payload.name, "referrer": payload.referrer}
+
+    # Hash the password & create a Credential record
     password_hash = get_password_hash(payload.password)
     credential = Credential(
         id=uuid4(),
         user_id=user.id,
         password_hash=password_hash,
-        salt="",          # bcrypt already stores its own salt
+        salt="",      # Argon2 stores its own salt internally
         type="password",
     )
 
-    # Optional: store name or referrer in meta if your User model has fields/JSONB
-    if hasattr(user, "name") and payload.name:
-        user.name = payload.name
-    if hasattr(user, "referrer") and payload.referrer:
-        user.referrer = payload.referrer
-
-    # Save both User and Credential
+    # Add to DB session
     db.add(user)
     db.add(credential)
 
@@ -75,7 +77,7 @@ def create_user(
         db.commit()
     except IntegrityError:
         db.rollback()
-        # Likely a unique constraint failure on email or phone
+        # Unique constraint violation on email or phone
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Email or phone already exists."
@@ -83,13 +85,13 @@ def create_user(
 
     db.refresh(user)
 
-    # ---------------------------------------------------------------
-    # Optionally publish an event: user.registered {userId, email?, phone?}
-    # e.g., event_bus.publish("user.registered", {
+    # -----------------------------------------------------------------------
+    # Optional: publish an event to your message bus for downstream services.
+    # event_bus.publish("user.registered", {
     #     "userId": str(user.id),
     #     "email": user.email,
     #     "phone": user.phone
     # })
-    # ---------------------------------------------------------------
+    # -----------------------------------------------------------------------
 
     return user

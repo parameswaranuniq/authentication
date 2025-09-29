@@ -44,13 +44,13 @@ class RegisterResponseData(BaseModel):
     Data block returned on successful registration.
     """
     userId: UUID
-    status: str  # typically "pending_verification"
+    status: str  # typically "active"
 
     class Config:
         json_schema_extra = {
             "example": {
                 "userId": "550e8400-e29b-41d4-a716-446655440000",
-                "status": "pending_verification"
+                "status": "active"
             }
         }
 
