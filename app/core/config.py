@@ -104,6 +104,9 @@ class Settings(BaseSettings):
         "http://127.0.0.1:3000",
         "http://localhost:8000",  # FastAPI docs
         "http://127.0.0.1:8000",
+        "https://new-chat-76a3.bolt.host",
+        "http://localhost:5173",  # React/Vite default
+        "http://127.0.0.1:5173",
     ]
 
     # ------------------------------------------------------------------
@@ -166,8 +169,8 @@ class Settings(BaseSettings):
     # ------------------------------------------------------------------
     
     # Google OAuth - Required for social login
-    GOOGLE_CLIENT_ID: Optional[str] = "your-google-client-id.apps.googleusercontent.com"
-    GOOGLE_CLIENT_SECRET: Optional[str] = "your-google-client-secret"
+    GOOGLE_CLIENT_ID: Optional[str] = "185126911983-b5hdfos6qmd9opkeusghpi1h9lajuj93.apps.googleusercontent.com"
+    GOOGLE_CLIENT_SECRET: Optional[str] = "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"
     
     # Application URLs for OAuth callbacks
     BASE_URL: str = "http://127.0.0.1:8000"  # Your API base URL
